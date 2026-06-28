@@ -1,6 +1,6 @@
 from flask import Flask, jsonify
 app = Flask(__name__)
-
+d
 # ─────────────────────────────────────────────
 #  Shared shell: header + animated background
 # ─────────────────────────────────────────────
@@ -813,7 +813,7 @@ HOME_HTML = """
         AI-Powered · AWS · Azure · GCP
       </div>
       <h1 class="hero-title fade-up delay-1">
-        Multicloud <br>
+        Hybridcloud <br>
         <span class="glow-text">Devops</span><br>
         CiCD By Veera sir
       </h1>
