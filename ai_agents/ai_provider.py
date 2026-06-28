@@ -111,7 +111,7 @@ def ask_groq(prompt):
                     "content": prompt
                 }
             ],
-            model="llama-3.1-8b-instant"
+            model="llama-3.3-70b-versatile"
         )
 
         return completion.choices[0].message.content
