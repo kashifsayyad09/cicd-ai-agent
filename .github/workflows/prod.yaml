@@ -1,4 +1,4 @@
-name: 🚀 AI Website Deployment Pipeline
+name: 🚀 AI Website Deployment Pipelinee
 
 on:
   workflow_dispatch:
