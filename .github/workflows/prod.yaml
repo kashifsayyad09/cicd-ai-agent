@@ -166,7 +166,7 @@ jobs:
     - name: 📧 Send Success Email
       if: success()
       run: |
-        python ai_agents/agent_guard.py \
+        python ai_agents/email_notification_agent.py \
          --status SUCCESS \
          --recipient "${{ secrets.EMAIL_TO }}"
 
