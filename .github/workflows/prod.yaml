@@ -8,9 +8,9 @@ permissions:
 
 env:
   GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-  EMAIL_USERNAME: ${{ secrets.EMAIL_USERNAME }}
-  EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
-  EMAIL_TO: ${{ secrets.EMAIL_TO }}
+  # EMAIL_USERNAME: ${{ secrets.EMAIL_USERNAME }}
+  # EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+  # EMAIL_TO: ${{ secrets.EMAIL_TO }}
 
 jobs:
   deploy:
@@ -163,12 +163,12 @@ jobs:
       run: |
         echo "Deployment completed successfully."
 
-    - name: 📧 Send Success Email
-      if: success()
-      run: |
-        python ai_agents/email_notification_agent.py \
-         --status SUCCESS \
-         --recipient "${{ secrets.EMAIL_TO }}"
+    # - name: 📧 Send Success Email
+    #   if: success()
+    #   run: |
+    #     python ai_agents/email_notification_agent.py \
+    #      --status SUCCESS \
+    #      --recipient "${{ secrets.EMAIL_TO }}"
 
     ##################################################
     # FAILURE ANALYSIS
