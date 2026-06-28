@@ -174,7 +174,7 @@ jobs:
         ssh -o StrictHostKeyChecking=no ec2-user@${{ secrets.EC2_HOST }} << 'EOF'
         cd ~/website
     
-        export GEMINI_API_KEY="${{ secrets.GEMINI_API_KEY }}"
+        export GROQ_API_KEY="${{ secrets.GROQ_API_KEY }}"
     
         echo "========================================"
         echo "Downloading Application Logs"
