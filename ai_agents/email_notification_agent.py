@@ -1,33 +1,13 @@
 import os
 import smtplib
 import ssl
-import traceback
-import argparse
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
-try:
-    server = smtplib.SMTP("smtp.gmail.com", 587)
-    server.starttls()
+EMAIL_USERNAME = os.getenv("EMAIL_USERNAME")
+EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
+EMAIL_TO = os.getenv("EMAIL_TO")
 
-    print("Logging into Gmail...")
-    server.login(EMAIL_USERNAME, EMAIL_PASSWORD)
-
-    print("Sending email...")
-    server.sendmail(
-        EMAIL_USERNAME,
-        EMAIL_TO,
-        message.as_string()
-    )
-
-    print("✅ Email sent successfully!")
-
-except Exception as e:
-    print("❌ Email sending failed")
-    print(str(e))
-    traceback.print_exc()
-    raise
-
-finally:
-    try:
-        server.quit()
-    except:
-        pass
+print(f"EMAIL_USERNAME: {EMAIL_USERNAME}")
+print(f"EMAIL_TO: {EMAIL_TO}")
+print(f"EMAIL_PASSWORD exists: {EMAIL_PASSWORD is not None}")
