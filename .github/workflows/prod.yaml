@@ -1,255 +1,4 @@
-# name: 🚀 AI Website Deployment Pipelinee
-
-# on:
-#   workflow_dispatch:
-
-# permissions:
-#   contents: read
-
-# env:
-#   GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-
-# jobs:
-#   deploy:
-#     runs-on: ubuntu-latest
-#     timeout-minutes: 20
-
-#     steps:
-
-#     ##################################################
-#     # SOURCE CODE
-#     ##################################################
-
-#     - name: 📦 Checkout Code
-#       uses: actions/checkout@v4
-
-#     - name: 🔐 Setup SSH
-#       uses: webfactory/ssh-agent@v0.9.0
-#       with:
-#         ssh-private-key: ${{ secrets.EC2_SSH_KEY }}
-
-#     - name: 🐍 Setup Python
-#       uses: actions/setup-python@v5
-#       with:
-#         python-version: "3.11"
-#         cache: "pip"
-
-#     - name: 📦 Install Local Dependencies
-#       run: |
-#         pip install -r requirements.txt
-
-#     ##################################################
-#     # AI QUALITY GATES
-#     ##################################################
-
-#     - name: 🤖 AI Code Review Agent
-#       run: |
-#         python ai_agents/code_review_agent.py
-
-#     - name: 🔐 AI Security Agent
-#       run: |
-#         python ai_agents/security_agent.py
-
-#     - name: 🧠 AI Deployment Advisory Agent
-#       continue-on-error: true
-#       run: |
-#         python ai_agents/deployment_risk_agent.py
-
-#     ##################################################
-#     # BACKUP CURRENT DEPLOYMENT
-#     ##################################################
-
-#     - name: 💾 Backup Existing Deployment
-#       run: |
-#         ssh -o StrictHostKeyChecking=no ec2-user@${{ secrets.EC2_HOST }} '
-#           rm -rf ~/website_backup
-
-#           if [ -d ~/website ]; then
-#             cp -r ~/website ~/website_backup
-#           fi
-#         '
-
-#     ##################################################
-#     # DEPLOY NEW VERSION
-#     ##################################################
-
-#     - name: 🚚 Upload Website to EC2
-#       run: |
-#         ssh -o StrictHostKeyChecking=no ec2-user@${{ secrets.EC2_HOST }} '
-#           mkdir -p ~/website
-#         '
-
-#         scp -o StrictHostKeyChecking=no -r * \
-#           ec2-user@${{ secrets.EC2_HOST }}:~/website/
-
-#     - name: 🐍 Install Dependencies on EC2
-#       run: |
-#         ssh ec2-user@${{ secrets.EC2_HOST }} '
-#           sudo yum install -y python3 python3-pip
-
-#           cd ~/website
-
-#           pip3 install --user -r requirements.txt
-#         '
-
-#     ##################################################
-#     # STOP OLD APPLICATION
-#     ##################################################
-
-#     - name: 🛑 Stop Existing Application
-#       run: |
-#         ssh ec2-user@${{ secrets.EC2_HOST }} '
-#           PID=$(lsof -t -i:5000 || true)
-
-#           if [ ! -z "$PID" ]; then
-#             kill -9 $PID
-#           fi
-#         '
-
-#     ##################################################
-#     # START NEW APPLICATION
-#     ##################################################
-
-#     - name: 🚀 Start Application
-#       run: |
-#         ssh ec2-user@${{ secrets.EC2_HOST }} '
-#           cd ~/website
-
-#           nohup python3 -u app.py \
-#             > output.log \
-#             2> error.log \
-#             < /dev/null &
-
-#           sleep 10
-#         '
-
-#     ##################################################
-#     # STARTUP VALIDATION
-#     ##################################################
-
-#     - name: 🔎 Verify Application Started
-#       run: |
-#         ssh ec2-user@${{ secrets.EC2_HOST }} '
-#           if ! lsof -i:5000 > /dev/null; then
-#             echo "Application failed to start"
-
-#             echo "===== OUTPUT LOG ====="
-#             cat output.log || true
-
-#             echo "===== ERROR LOG ====="
-#             cat error.log || true
-
-#             exit 1
-#           fi
-#         '
-
-#     ##################################################
-#     # HEALTH CHECK
-#     ##################################################
-
-#     - name: 🔍 Health Check
-#       run: |
-#         curl --fail http://${{ secrets.EC2_HOST }}:5000/health
-
-#     ##################################################
-#     # SUCCESS
-#     ##################################################
-
-#     - name: ✅ Deployment Successful
-#       if: success()
-#       run: |
-#         echo "Deployment completed successfully."
-
-#     ##################################################
-#     # FAILURE ANALYSIS
-#     ##################################################
-
-#     ##################################################
-# # AI LOG ANALYSIS (ALWAYS RUN)
-# ##################################################
-
-#     - name: 📄 AI Log Analysis Agent
-#       if: success() || failure()
-#       run: |
-#         ssh -o StrictHostKeyChecking=no ec2-user@${{ secrets.EC2_HOST }} << 'EOF'
-#         cd ~/website
-    
-#         export GROQ_API_KEY="${{ secrets.GROQ_API_KEY }}"
-    
-#         echo "========================================"
-#         echo "Downloading Application Logs"
-#         echo "========================================"
-    
-#         echo "===== output.log ====="
-#         cat output.log 2>/dev/null || echo "output.log not found"
-    
-#         echo "===== error.log ====="
-#         cat error.log 2>/dev/null || echo "error.log not found"
-    
-#         echo "========================================"
-#         echo "Running AI Log Analysis..."
-#         echo "========================================"
-    
-#         python3 ai_agents/log_analysis_agent.py
-#         EOF
-
-#     ##################################################
-#     # ROLLBACK
-#     ##################################################
-
-#     - name: 🔁 Rollback to Previous Version
-#       if: failure()
-#       run: |
-#         ssh ec2-user@${{ secrets.EC2_HOST }} '
-
-#           echo "Deployment failed. Starting rollback..."
-
-#           PID=$(lsof -t -i:5000 || true)
-
-#           if [ ! -z "$PID" ]; then
-#             kill -9 $PID
-#           fi
-
-#           mv ~/website ~/failed_release_$(date +%s) || true
-
-#           if [ -d ~/website_backup ]; then
-#             mv ~/website_backup ~/website
-#           fi
-
-#           cd ~/website
-
-#           nohup python3 -u app.py \
-#             > output.log \
-#             2> error.log \
-#             < /dev/null &
-
-#           sleep 10
-
-#           HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
-#             http://localhost:5000/health)
-
-#           if [ "$HTTP_CODE" = "200" ]; then
-#             echo "✅ Rollback successful"
-#           else
-#             echo "❌ Rollback failed"
-#             exit 1
-#           fi
-#         '
-
-#     ##################################################
-#     # FINAL STATUS
-#     ##################################################
-
-#     - name: ❌ Deployment Failed
-#       if: failure()
-#       run: |
-#         echo "Deployment failed and rollback executed."
-
-
-#  -----------------------------------------------
-
-
-name: 🚀 AI Website Deployment Pipeline
+name: 🚀 AI Website Deployment Pipelinee
 
 on:
   workflow_dispatch:
@@ -258,256 +7,245 @@ permissions:
   contents: read
 
 env:
-  PYTHON_VERSION: "3.11"
-  APP_DIR: ~/website
-  APP_PORT: 5000
   GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
 
 jobs:
   deploy:
-    name: AI Deployment
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
 
     steps:
 
     ##################################################
-    # Checkout Repository
+    # SOURCE CODE
     ##################################################
 
-    - name: 📦 Checkout Repository
+    - name: 📦 Checkout Code
       uses: actions/checkout@v4
 
-    ##################################################
-    # Validate Required Secrets
-    ##################################################
-
-    - name: 🔍 Validate Secrets
-      run: |
-        [ -n "${{ secrets.EC2_HOST }}" ] || { echo "EC2_HOST missing"; exit 1; }
-        [ -n "${{ secrets.EC2_SSH_KEY }}" ] || { echo "EC2_SSH_KEY missing"; exit 1; }
-        [ -n "${{ secrets.GROQ_API_KEY }}" ] || { echo "GROQ_API_KEY missing"; exit 1; }
-
-        echo "✅ All required secrets found."
-
-    ##################################################
-    # Configure SSH
-    ##################################################
-
-    - name: 🔐 Configure SSH
+    - name: 🔐 Setup SSH
       uses: webfactory/ssh-agent@v0.9.0
       with:
         ssh-private-key: ${{ secrets.EC2_SSH_KEY }}
 
-    ##################################################
-    # Setup Python
-    ##################################################
-
     - name: 🐍 Setup Python
       uses: actions/setup-python@v5
       with:
-        python-version: ${{ env.PYTHON_VERSION }}
-        cache: pip
+        python-version: "3.11"
+        cache: "pip"
 
-    ##################################################
-    # Install Dependencies
-    ##################################################
-
-    - name: 📦 Install Dependencies
+    - name: 📦 Install Local Dependencies
       run: |
-        python -m pip install --upgrade pip
         pip install -r requirements.txt
 
     ##################################################
-    # AI Quality Gates
+    # AI QUALITY GATES
     ##################################################
 
     - name: 🤖 AI Code Review Agent
-      run: python ai_agents/code_review_agent.py
+      run: |
+        python ai_agents/code_review_agent.py
 
     - name: 🔐 AI Security Agent
-      run: python ai_agents/security_agent.py
+      run: |
+        python ai_agents/security_agent.py
 
-    - name: 🧠 AI Deployment Risk Agent
-      run: python ai_agents/deployment_risk_agent.py
+    - name: 🧠 AI Deployment Advisory Agent
+      continue-on-error: true
+      run: |
+        python ai_agents/deployment_risk_agent.py
 
     ##################################################
-    # Backup Current Deployment
+    # BACKUP CURRENT DEPLOYMENT
     ##################################################
 
     - name: 💾 Backup Existing Deployment
       run: |
-        ssh -o StrictHostKeyChecking=no ec2-user@${{ secrets.EC2_HOST }} << EOF
+        ssh -o StrictHostKeyChecking=no ec2-user@${{ secrets.EC2_HOST }} '
+          rm -rf ~/website_backup
 
-        rm -rf ~/website_backup
-
-        if [ -d "$APP_DIR" ]; then
-            cp -r "$APP_DIR" ~/website_backup
-        fi
-
-        EOF
+          if [ -d ~/website ]; then
+            cp -r ~/website ~/website_backup
+          fi
+        '
 
     ##################################################
-    # Upload Application
+    # DEPLOY NEW VERSION
     ##################################################
 
-    - name: 🚚 Upload Project
+    - name: 🚚 Upload Website to EC2
       run: |
-        ssh -o StrictHostKeyChecking=no ec2-user@${{ secrets.EC2_HOST }} "mkdir -p $APP_DIR"
+        ssh -o StrictHostKeyChecking=no ec2-user@${{ secrets.EC2_HOST }} '
+          mkdir -p ~/website
+        '
 
-        scp -o StrictHostKeyChecking=no -r ./* \
-          ec2-user@${{ secrets.EC2_HOST }}:$APP_DIR/
+        scp -o StrictHostKeyChecking=no -r * \
+          ec2-user@${{ secrets.EC2_HOST }}:~/website/
 
-    ##################################################
-    # Install Application
-    ##################################################
-
-    - name: 📦 Install Application Dependencies
+    - name: 🐍 Install Dependencies on EC2
       run: |
-        ssh -o StrictHostKeyChecking=no ec2-user@${{ secrets.EC2_HOST }} << EOF
+        ssh ec2-user@${{ secrets.EC2_HOST }} '
+          sudo yum install -y python3 python3-pip
 
-        sudo yum install -y python3 python3-pip lsof
+          cd ~/website
 
-        cd $APP_DIR
-
-        python3 -m venv venv
-
-        source venv/bin/activate
-
-        python -m pip install --upgrade pip
-
-        pip install -r requirements.txt
-
-        EOF
+          pip3 install --user -r requirements.txt
+        '
 
     ##################################################
-    # Stop Previous Version
+    # STOP OLD APPLICATION
     ##################################################
 
     - name: 🛑 Stop Existing Application
       run: |
-        ssh -o StrictHostKeyChecking=no ec2-user@${{ secrets.EC2_HOST }} << EOF
+        ssh ec2-user@${{ secrets.EC2_HOST }} '
+          PID=$(lsof -t -i:5000 || true)
 
-        PID=$(lsof -t -i:$APP_PORT || true)
-
-        if [ ! -z "$PID" ]; then
+          if [ ! -z "$PID" ]; then
             kill -9 $PID
-        fi
-
-        EOF
+          fi
+        '
 
     ##################################################
-    # Start Application
+    # START NEW APPLICATION
     ##################################################
 
     - name: 🚀 Start Application
       run: |
-        ssh -o StrictHostKeyChecking=no ec2-user@${{ secrets.EC2_HOST }} << EOF
+        ssh ec2-user@${{ secrets.EC2_HOST }} '
+          cd ~/website
 
-        cd $APP_DIR
-
-        source venv/bin/activate
-
-        nohup python app.py \
+          nohup python3 -u app.py \
             > output.log \
-            2> error.log &
+            2> error.log \
+            < /dev/null &
 
-        sleep 10
-
-        EOF
+          sleep 10
+        '
 
     ##################################################
-    # Verify Startup
+    # STARTUP VALIDATION
     ##################################################
 
-    - name: 🔎 Verify Application
+    - name: 🔎 Verify Application Started
       run: |
-        ssh -o StrictHostKeyChecking=no ec2-user@${{ secrets.EC2_HOST }} << EOF
+        ssh ec2-user@${{ secrets.EC2_HOST }} '
+          if ! lsof -i:5000 > /dev/null; then
+            echo "Application failed to start"
 
-        if ! lsof -i:$APP_PORT >/dev/null; then
-
-            echo "Application failed."
-
-            echo "===== output.log ====="
+            echo "===== OUTPUT LOG ====="
             cat output.log || true
 
-            echo "===== error.log ====="
+            echo "===== ERROR LOG ====="
             cat error.log || true
 
             exit 1
-        fi
-
-        EOF
+          fi
+        '
 
     ##################################################
-    # Health Check
+    # HEALTH CHECK
     ##################################################
 
-    - name: ❤️ Health Check
+    - name: 🔍 Health Check
       run: |
-        curl --retry 5 \
-             --retry-delay 5 \
-             --fail \
-             http://${{ secrets.EC2_HOST }}:$APP_PORT/health
+        curl --fail http://${{ secrets.EC2_HOST }}:5000/health
 
     ##################################################
-    # AI Log Analysis
+    # SUCCESS
     ##################################################
 
-    - name: 📄 AI Log Analysis
-      if: always()
+    - name: ✅ Deployment Successful
+      if: success()
       run: |
-        ssh -o StrictHostKeyChecking=no ec2-user@${{ secrets.EC2_HOST }} << EOF
+        echo "Deployment completed successfully."
 
+    ##################################################
+    # FAILURE ANALYSIS
+    ##################################################
+
+    ##################################################
+# AI LOG ANALYSIS (ALWAYS RUN)
+##################################################
+
+    - name: 📄 AI Log Analysis Agent
+      if: success() || failure()
+      run: |
+        ssh -o StrictHostKeyChecking=no ec2-user@${{ secrets.EC2_HOST }} << 'EOF'
+        cd ~/website
+    
         export GROQ_API_KEY="${{ secrets.GROQ_API_KEY }}"
-
-        cd $APP_DIR
-
+    
+        echo "========================================"
+        echo "Downloading Application Logs"
+        echo "========================================"
+    
+        echo "===== output.log ====="
+        cat output.log 2>/dev/null || echo "output.log not found"
+    
+        echo "===== error.log ====="
+        cat error.log 2>/dev/null || echo "error.log not found"
+    
+        echo "========================================"
+        echo "Running AI Log Analysis..."
+        echo "========================================"
+    
         python3 ai_agents/log_analysis_agent.py
-
         EOF
 
     ##################################################
-    # Rollback
+    # ROLLBACK
     ##################################################
 
-    - name: 🔁 Rollback
+    - name: 🔁 Rollback to Previous Version
       if: failure()
       run: |
-        ssh -o StrictHostKeyChecking=no ec2-user@${{ secrets.EC2_HOST }} << EOF
+        ssh ec2-user@${{ secrets.EC2_HOST }} '
 
-        echo "Deployment failed."
+          echo "Deployment failed. Starting rollback..."
 
-        PID=$(lsof -t -i:$APP_PORT || true)
+          PID=$(lsof -t -i:5000 || true)
 
-        [ ! -z "$PID" ] && kill -9 $PID
+          if [ ! -z "$PID" ]; then
+            kill -9 $PID
+          fi
 
-        rm -rf $APP_DIR
+          mv ~/website ~/failed_release_$(date +%s) || true
 
-        mv ~/website_backup $APP_DIR
+          if [ -d ~/website_backup ]; then
+            mv ~/website_backup ~/website
+          fi
 
-        cd $APP_DIR
+          cd ~/website
 
-        source venv/bin/activate
-
-        nohup python app.py \
+          nohup python3 -u app.py \
             > output.log \
-            2> error.log &
+            2> error.log \
+            < /dev/null &
 
-        sleep 10
+          sleep 10
 
-        curl --fail http://localhost:$APP_PORT/health
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+            http://localhost:5000/health)
 
-        EOF
+          if [ "$HTTP_CODE" = "200" ]; then
+            echo "✅ Rollback successful"
+          else
+            echo "❌ Rollback failed"
+            exit 1
+          fi
+        '
 
     ##################################################
-    # Final Status
+    # FINAL STATUS
     ##################################################
-
-    - name: ✅ Deployment Completed
-      if: success()
-      run: echo "🎉 Deployment completed successfully."
 
     - name: ❌ Deployment Failed
       if: failure()
-      run: echo "Rollback completed after deployment failure."
+      run: |
+        echo "Deployment failed and rollback executed."
+
+
+
+
+
