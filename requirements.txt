@@ -2,3 +2,5 @@ requests
 google-generativeai
 groq
 flask
+traceback
+os
